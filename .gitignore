@@ -1,1 +1,3 @@
 hamm/
+*/hammer.egg-info/
+*/__pycache__/

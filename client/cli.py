@@ -30,5 +30,8 @@ def status(job_id: str):
     """
     typer.echo(f"Pinging Central Broker for status of job: {job_id}...")
 
-if __name__ == "__main__":
+def main():
     app()
+
+if __name__ == "__main__":
+    main()
