@@ -1,5 +1,6 @@
 import typer
 from pathlib import Path
+import requests
 
 app = typer.Typer(help="Hammer: The Distributed Campus Grid")
 
@@ -19,7 +20,16 @@ def submit(
         raise typer.Exit(code=1)
         
     typer.echo(f"Packaging {script}...")
-    typer.echo(f"Preparing to chunk {dataset} into {chunks} pieces...")
+    # typer.echo(f"Preparing to chunk {dataset} into {chunks} pieces...")
+
+    submit_path = "http://127.0.0.1:5000/submit"
+
+    files = {
+        'dataset': open(dataset, 'rb'),
+        'pyfile': open(script, 'rb')
+    }
+
+    requests.post(submit_path, files=files)
         
     typer.secho("Job successfully fired to the Central Broker!", fg=typer.colors.GREEN)
 
