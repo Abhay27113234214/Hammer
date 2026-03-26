@@ -1,3 +1,5 @@
 hamm/
 */hammer.egg-info/
 */__pycache__/
+*/test.py
+*/data.csv
