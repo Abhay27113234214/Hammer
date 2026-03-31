@@ -1,49 +1,13 @@
 import typer
 from pathlib import Path
-from typing import Optional  #first change
 import requests
 import os
 import json
 import math
-import jwt as pyjwt  # pip install PyJWT
+from pathlib import Path
 
 app = typer.Typer(help="Hammer: The Distributed Campus Grid")
 TOKEN_FILE = Path.home() / ".hammer_token" 
-
-
-
-def divideintochunks(file_path: Path):
-    file_size_bytes = os.path.getsize(file_path)
-    file_size_mb = file_size_bytes / (1024 * 1024)
-    
-    target_chunk_mb = 64.0 
-    
-    # Calculate required chunks and round up (minimum 1 chunk)
-    calculated_chunks = max(1, math.ceil(file_size_mb / target_chunk_mb))
-    return calculated_chunks
-
-
-
-
-def get_token():
-    if TOKEN_FILE.exists():
-        with open(TOKEN_FILE, 'r') as f:
-            token = json.load(f)["access_token"]
-        try:
-            # ✅ decode without verifying signature, just check expiry
-            pyjwt.decode(token, options={"verify_signature": False, "verify_exp": True})
-            return token                        # ✅ token still valid
-        except pyjwt.ExpiredSignatureError:
-            TOKEN_FILE.unlink()                 # ✅ delete expired token file
-            typer.secho("Session expired, please login again!", fg=typer.colors.YELLOW)
-            return None
-    return None
-
-
-
-def save_token(token: str):
-    with open(TOKEN_FILE, 'w') as f:
-        json.dump({"access_token": token}, f)
 
 @app.command()
 def submit(
@@ -51,59 +15,48 @@ def submit(
     dataset: Path = typer.Argument(..., help="The massive CSV dataset"),
     chunks: int = typer.Option(None, "--chunks", "-c", help="Number of pieces to split the data into")
 ):
-    
-    token = get_token()
-
-    
-    if not token:                                  
-        typer.secho("Please login first!", fg=typer.colors.RED)
-        raise typer.Exit(code=1)
-        
     """
     Submit a machine learning job to the Hammer grid.
     """
-
-        
-
-    typer.secho(f"Initializing Hammer Protocol...", fg=typer.colors.CYAN, bold=True)
+    typer.secho("Initializing Hammer Protocol...", fg=typer.colors.CYAN, bold=True)
     
-    
-    if not script.exists():
-        typer.secho(f"Error: Script '{script}' not found.", fg=typer.colors.RED)
+    if not script.exists() or not dataset.exists():
+        typer.secho("Error: Could not find the script or dataset file.", fg=typer.colors.RED)
         raise typer.Exit(code=1)
+        
+    typer.echo(f"Packaging {script.name} and {dataset.name}...")
     
-    if chunks is None:
-        typer.secho("🧠 No chunk count provided. Calculating optimal size...", fg=typer.colors.CYAN)
-        chunks = divideintochunks(dataset)
-    else:
-        chunks = chunks
-    
-    
-    typer.echo(f"Packaging {script}...")
-    # typer.echo(f"Preparing to chunk {dataset} into {chunks} pieces...")
+    url = "http://127.0.0.1:5000/submit"
 
-    submit_path = "http://127.0.0.1:5000/submit"
-
+    if not TOKEN_FILE.exists():
+        typer.secho("Error: You must login first using 'hammer login'", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+        
+    with open(TOKEN_FILE, "r") as f:
+        token = f.read().strip()
+        
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    
     files = {
-        'dataset': open(dataset, 'rb'),
-        'pyfile': open(script, 'rb')
-
+        'pyfile': open(script, 'rb'),
+        'dataset': open(dataset, 'rb')
     }
 
-    requests.post(submit_path, files=files)
+    try:
+        typer.echo("Transmitting to Central Broker...")
         
-    typer.secho("Job successfully fired to the Central Broker!", fg=typer.colors.GREEN)
-    
-    print(chunks)
-
-
-@app.command()
-def status(job_id: str):
-    """
-    Check the status of a submitted job.
-    """
-    typer.echo(f"Pinging Central Broker for status of job: {job_id}...")
-
+        response = requests.post(url, files=files, headers=headers)
+        
+        if response.status_code == 200:
+            typer.secho("Success! Job accepted by the Hammer Broker.", fg=typer.colors.GREEN)
+            typer.echo(f"Server Response: {response.json().get('message', '')}")
+        else:
+            typer.secho(f"Server Error: {response.json().get('message', '')}", fg=typer.colors.RED)
+            
+    except requests.exceptions.ConnectionError:
+        typer.secho("Error: Could not connect to the Central Broker. Is the server running?", fg=typer.colors.RED)
 
 @app.command()
 def register(
@@ -117,47 +70,14 @@ def register(
         'email': email,
         'password': password
     }
-
-
-
-    response=requests.post(register_path, data=form_data)
-
-    # print("Status code:", response.status_code)
-    # print("Response body:", response.text)
+    response=requests.post(register_path, json=form_data)
 
     if response.status_code == 201:
-        api_key = response.json()["api_key"]
-        typer.secho(f"Registered! Your API key: {api_key}", fg=typer.colors.GREEN)
-        typer.secho("Save this key — you'll need it for all commands!", fg=typer.colors.YELLOW)
         typer.secho(
-        "\nLogin Options:\n"
-        " 1. Login with Credentials (login function)\n"
-        " 2. Login with API KEY (login_key function)",
+        "Login with you email and password",
         fg=typer.colors.CYAN,
         bold=True
     )
-
-
-@app.command()
-def loginkey(
-    key: str = typer.Option(..., help="the key provided when you register")
-):
-    login_path="http://127.0.0.1:5000/loginkey"
-    
-    form_data = {
-        'api_key':key
-    }
-
-    response=requests.post(login_path, data=form_data)
-    name=response.text.split("and")[0]
-    token=response.text.split("and")[1]
-
-    save_token(token=token)
-    if response.status_code==200:
-        typer.secho(name)
-    else:
-        typer.secho(response.text)
-
 
 
 @app.command()
@@ -171,18 +91,17 @@ def login(
         'email': email,
         'password': password
     }
+    response=requests.post(login_path, json=form_data)
 
-    response=requests.post(login_path, data=form_data)
-    name=response.text.split("and")[0]
-    token=response.text.split("and")[1]
-    save_token(token=token)
     if response.status_code == 200:
-        typer.secho(name, fg=typer.colors.GREEN)
+        token = response.json().get("access_token")
+        with open(TOKEN_FILE, "w") as f:
+            f.write(token)
+        typer.secho(response.json().get("message",""), fg=typer.colors.GREEN)
     elif response.status_code == 404:
         typer.secho("Wrong Password", fg=typer.colors.RED)
     else:
         typer.secho("User not exist", fg=typer.colors.RED)
-
 
 
 
