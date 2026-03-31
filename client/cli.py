@@ -55,7 +55,7 @@ def submit(
     token = get_token()
 
     
-    if not token:                                        # ✅ check before anything
+    if not token:                                  
         typer.secho("Please login first!", fg=typer.colors.RED)
         raise typer.Exit(code=1)
         
