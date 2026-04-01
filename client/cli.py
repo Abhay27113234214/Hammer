@@ -47,7 +47,7 @@ def submit(
     try:
         typer.echo("Transmitting to Central Broker...")
         
-        response = requests.post(url, files=files, headers=headers)
+        response = requests.post(url, data={'chunks':chunks}, files=files, headers=headers)
         
         if response.status_code == 200:
             typer.secho("Success! Job accepted by the Hammer Broker.", fg=typer.colors.GREEN)
@@ -74,10 +74,12 @@ def register(
 
     if response.status_code == 201:
         typer.secho(
-        "Login with you email and password",
-        fg=typer.colors.CYAN,
-        bold=True
-    )
+            "Login with you email and password",
+            fg=typer.colors.CYAN,
+            bold=True
+        )
+    else:
+        typer.secho("Unable to register the user", fg=typer.colors.RED, bold=True)
 
 
 @app.command()

@@ -10,7 +10,7 @@ import secrets
 import re
 from datetime import timedelta
 from flask_bcrypt import Bcrypt
-
+from chunker import chunk_csv_manual
 
 app = Flask(__name__)
 jwt = JWTManager()
@@ -26,10 +26,10 @@ os.makedirs(PYFILES_FOLDER, exist_ok=True)
 basedir=os.path.abspath(os.path.dirname(__file__))
 
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=1)
-app.config["JWT_SECRET_KEY"] = "super-secret"
+app.config["JWT_SECRET_KEY"] = secrets.token_hex(32)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir,"instance/app.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'projectbangayaapna'
+app.config['SECRET_KEY'] = secrets.token_hex(32)
 db = SQLAlchemy(app)
 
 login_manager = LoginManager()
@@ -66,10 +66,13 @@ class SubmitResource(Resource):
 
         dataset = request.files['dataset']
         pyfile = request.files['pyfile']
+        chunks = request.form.get("chunks")  
+        chunks = int(chunks)      
         dataset_path = os.path.join(DATASETS_FOLDER, dataset.filename)
         pyfile_path = os.path.join(PYFILES_FOLDER, pyfile.filename)
         dataset.save(dataset_path)
         pyfile.save(pyfile_path)
+        chunk_csv_manual(dataset_path, chunks)
         return {'message':'successfully submitted'}
 
 
@@ -78,7 +81,6 @@ class RegisterResources(Resource):
         data = request.get_json()
         email = data.get("email")
         password = data.get("password")
-
         user_data = User(email)
         user_data.save_hash_password(password)
         db.session.add(user_data)
