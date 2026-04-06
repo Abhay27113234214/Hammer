@@ -13,7 +13,7 @@ TOKEN_FILE = Path.home() / ".hammer_token"
 def submit(
     script: Path = typer.Argument(..., help="The Python script to execute"),
     dataset: Path = typer.Argument(..., help="The massive CSV dataset"),
-    chunks: int = typer.Option(None, "--chunks", "-c", help="Number of pieces to split the data into")
+    chunks: int = typer.Option(4, "--chunks", "-c", help="Number of pieces to split the data into")
 ):
     """
     Submit a machine learning job to the Hammer grid.
@@ -46,15 +46,16 @@ def submit(
 
     try:
         typer.echo("Transmitting to Central Broker...")
-        
         response = requests.post(url, data={'chunks':chunks}, files=files, headers=headers)
         
         if response.status_code == 200:
             typer.secho("Success! Job accepted by the Hammer Broker.", fg=typer.colors.GREEN)
             typer.echo(f"Server Response: {response.json().get('message', '')}")
         else:
-            typer.secho(f"Server Error: {response.json().get('message', '')}", fg=typer.colors.RED)
-            
+            resp_data = response.json()
+            error_text = resp_data.get('message') or resp_data.get('msg') or "Unknown Server Crash"
+            typer.secho(f"Server Error: {error_text}", fg=typer.colors.RED)
+
     except requests.exceptions.ConnectionError:
         typer.secho("Error: Could not connect to the Central Broker. Is the server running?", fg=typer.colors.RED)
 
